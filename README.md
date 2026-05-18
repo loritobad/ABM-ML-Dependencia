@@ -95,4 +95,4 @@ Estas salidas están preparadas para ser ampliadas después con escenarios, cali
 
 ## Nota
 
-Esta es una primera versión experimental del ABM para el TFM. No incorpora todavía Machine Learning avanzado, GNN, DiffPool ni interfaz web. Su prioridad es ofrecer una base modular, reproducible y defendible académicamente.
+Esta es una primera versión experimental del ABM para el TFM.
