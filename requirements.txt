@@ -1,5 +1,5 @@
-mesa
 pandas
 numpy
 matplotlib
-networkx
+mesa
+jupyter

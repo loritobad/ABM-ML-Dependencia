@@ -2,8 +2,12 @@
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
 .env
 .DS_Store
+
+PROJECT_SUMMARY.md
 
 outputs/runs/*.csv
 outputs/figures/*.png
