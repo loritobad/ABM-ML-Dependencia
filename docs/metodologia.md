@@ -1,29 +1,53 @@
-# Metodología del ABM
+# Metodología del ABM (alineada con la ruta del Capítulo 4)
+
+## Principio rector
+
+Hay dos preguntas distintas y un orden obligatorio:
+
+1. **¿Es el ABM plausible frente a la realidad?** → validación ABM ↔ IMCV (`python -m src.run_imcv_validation`).
+2. **¿Qué surrogate imita mejor al ABM?** → comparativa CART / RF-GBM / MLP (+ baselines), solo después de la puerta.
+
+Cadena de incertidumbre: surrogate → ABM → realidad (IMCV).
 
 ## Representación del modelo
 
-Este repositorio contiene una primera versión experimental de un modelo basado en agentes para representar el circuito de dependencia en España. El modelo avanza en pasos mensuales y describe transiciones administrativas simplificadas desde la no solicitud hasta la prestación efectiva o la lista de espera.
+Modelo Mesa con ticks mensuales del circuito SAAD:
 
-## Agentes
+`no_solicitante → pendiente_grado → (sin_grado | con_derecho → con_pia → prestacion_efectiva | lista_espera)`
 
-Cada agente representa una persona mayor de 65 años. Los agentes se caracterizan por grupo de edad, tipo de territorio, situación de vulnerabilidad, estado administrativo en el SAAD, grado de dependencia, tipo de prestación y tiempo de espera acumulado.
+Salida operativa: **CSV mensual agregado** (`data/simulation_outputs/base_simulation.csv`), no panel agente-mes.
 
-## Estados administrativos
+## Proxy de bienestar
 
-Los estados incluidos son:
+`src/analysis/wellbeing.py` define `wellbeing_proxy` (escala ~0–10) a partir de cobertura, lista de espera, sin grado y peso del grado III. Es el **target principal** de los surrogates y el vínculo con el IMCV.
 
-- `no_solicitante`: persona que no ha iniciado solicitud.
-- `pendiente_grado`: solicitud iniciada y pendiente de resolución de grado.
-- `sin_grado`: resolución sin reconocimiento de grado.
-- `con_derecho`: reconocimiento de grado y derecho a prestación.
-- `con_pia`: Programa Individual de Atención reconocido.
-- `prestacion_efectiva`: prestación asignada y efectiva.
-- `lista_espera`: persona con derecho o trámite pendiente sin prestación efectiva.
+## Validación empírica (puerta)
 
-## Datos agregados generados
+- Referencia: `data/raw/imcv_reference.csv` (sustituir plantilla por valores oficiales INE).
+- Módulo: `src/analysis/imcv_validation.py`
+- Informe: `outputs/metrics/abm_imcv_validation.json`
+- Métricas: Pearson, Spearman, MAE, RMSE, KS; decisión `pasa | pasa_con_reservas | no_pasa`.
 
-La simulación genera un CSV mensual con conteos agregados de personas vulnerables, estados administrativos, grados de dependencia y prestaciones seleccionadas. Estas salidas están pensadas como base para análisis descriptivo, comparación de escenarios y futura generación de datos sintéticos para modelos sustitutos de Machine Learning.
+## Escenarios y dataset sintético
 
-## Limitaciones
+- Muestreo por defecto: **Latin Hypercube Sampling** (`sample_lhs_scenarios`).
+- Rangos: `src/datasets/parameter_bounds.py`.
+- Por escenario: ≥10 réplicas; media + `std_*` (suelo de error irreducible).
+- Splits por `scenario_id`: train / validation / test / **extrapolation**.
+- Manifest + SHA256: `outputs/datasets/dataset_manifest.json`.
 
-Esta versión no está calibrada con microdatos individuales ni reproduce diferencias territoriales reales por comunidad autónoma. Las probabilidades se aplican de forma homogénea y las transiciones son una simplificación del procedimiento administrativo. Tampoco incorpora mortalidad, entrada de nuevas cohortes, costes, bienestar subjetivo ni modelos predictivos avanzados. Su objetivo es ofrecer una base mínima, reproducible y defendible para ampliar el TFM.
+```powershell
+python -m src.run_experiments --method lhs --n-replicas 10
+python scripts/run_scenarios.py --n-simulations 100 --n-replicas 10
+```
+
+## Surrogates
+
+Catálogo en `src/surrogates/`: Dummy, Ridge, CART, RandomForest, GradientBoosting/XGBoost, MLP.  
+El entrenamiento completo (CV anidada, multi-semilla, Friedman/Nemenyi) es el siguiente incremento; `src/surrogates/train.py` bloquea si la puerta IMCV no está en pasa/pasa_con_reservas.
+
+## Limitaciones actuales
+
+- Sin microdatos individuales ni heterogeneidad territorial completa en el ABM.
+- La referencia IMCV del repo es una **plantilla** hasta cargar cifras oficiales.
+- El entrenamiento comparativo de surrogates aún no está cerrado en código.

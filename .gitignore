@@ -7,8 +7,6 @@ __pycache__/
 .env
 .DS_Store
 
-PROJECT_SUMMARY.md
-
 outputs/runs/*.csv
 outputs/figures/*.png
 outputs/reports/*.html
@@ -17,8 +15,10 @@ data/processed/*
 data/synthetic/*
 
 !data/raw/.gitkeep
+!data/raw/imcv_reference.csv
 !data/processed/.gitkeep
 !data/synthetic/.gitkeep
 !outputs/runs/.gitkeep
 !outputs/figures/.gitkeep
 !outputs/reports/.gitkeep
+/guia metodologica y trabajo final/

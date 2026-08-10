@@ -1,10 +1,18 @@
 # ABM-ML-Dependencia
 
-Modelo basado en agentes para simular, de forma simplificada y reproducible, el flujo administrativo del sistema de atencion a la dependencia. El proyecto se desarrolla como base metodologica de un TFM y prioriza claridad, trazabilidad y estructura academica antes que complejidad computacional.
+Modelo basado en agentes (Mesa) para simular, de forma simplificada y reproducible, el flujo administrativo del SAAD y preparar una **comparativa de modelos sustitutos** (surrogates) alineada con el TFM.
 
-## Objetivo del proyecto
+Repo: https://github.com/loritobad/ABM-ML-Dependencia
 
-El objetivo actual es disponer de una simulacion base defendible del circuito SAAD:
+## Principio metodológico (orden obligatorio)
+
+1. Validar el ABM frente al IMCV (`python -m src.run_imcv_validation`) — puerta empírica.
+2. Diseñar escenarios con **LHS**, ejecutar réplicas y construir el dataset sintético.
+3. Comparar surrogates (**Dummy, Ridge, CART, RF/GBM, MLP**) midiendo fidelidad al ABM, aceleración y extrapolación.
+
+El ground truth de los surrogates son las salidas del ABM, no los microdatos reales. La cadena es: **surrogate → ABM → realidad (IMCV)**.
+
+## Simulación base
 
 ```text
 poblacion vulnerable / no solicitante
@@ -14,70 +22,12 @@ poblacion vulnerable / no solicitante
 -> prestacion efectiva o lista de espera
 ```
 
-La simulacion genera resultados mensuales agregados para revisar dinamicas del modelo, documentar supuestos y preparar fases posteriores de validacion. La validacion empirica final no se plantea directamente contra SAAD, sino contra indicadores externos como el IMCV; los datos SAAD se usan para parametrizar y justificar rangos plausibles.
+- Población vulnerable inicial: **6387** agentes  
+- Horizonte: **60** meses  
+- Salida: CSV **mensual agregado** en `data/simulation_outputs/base_simulation.csv`  
+- Proxy de bienestar: `wellbeing_proxy` (ver `src/analysis/wellbeing.py`)
 
-## Descripcion del modelo
-
-Cada agente representa una persona vulnerable que inicialmente no ha solicitado valoracion. En cada tick mensual puede avanzar por los estados administrativos del modelo segun probabilidades configuradas en `src/model/parameters.py`.
-
-El modelo registra cada mes:
-
-- estados SAAD: no solicitantes, pendiente de grado, sin grado, con derecho, con PIA, prestacion efectiva y lista de espera
-- grados de dependencia: grado I, grado II y grado III
-- prestaciones: teleasistencia, ayuda a domicilio, atencion residencial y cuidados familiares
-
-La simulacion base parte de una poblacion vulnerable inicial coherente de 6.387 agentes, definida de forma unica con `initial_vulnerable_agents = 6387`. Por coherencia, en el mes 0 los agentes `no_solicitantes` tambien son 6.387.
-
-## Estructura del repositorio
-
-```text
-ABM-ML-Dependencia/
-├── data/
-│   ├── raw/
-│   ├── processed/
-│   └── simulation_outputs/
-│       └── base_simulation.csv
-├── notebooks/
-│   └── exploratory_analysis.ipynb
-├── outputs/
-│   ├── figures/
-│   │   ├── evolucion_estados_saad.png
-│   │   ├── evolucion_grados_dependencia.png
-│   │   ├── evolucion_prestaciones.png
-│   │   └── evolucion_estados_finales.png
-│   ├── metrics/
-│   │   └── base_simulation_metrics.json
-│   └── datasets/
-│       ├── simulation_parameters.csv
-│       ├── mlp_dataset.csv
-│       ├── dataset_splits.csv
-│       └── graphs/
-│           ├── nodes.csv
-│           ├── edges.csv
-│           └── graph_targets.csv
-├── src/
-│   ├── model/
-│   │   ├── agents.py
-│   │   ├── model.py
-│   │   └── parameters.py
-│   ├── analysis/
-│   │   └── plots.py
-│   ├── datasets/
-│   │   ├── scenario_sampler.py
-│   │   ├── mlp_exporter.py
-│   │   ├── graph_exporter.py
-│   │   └── split_generator.py
-│   ├── run_simulation.py
-│   └── run_experiments.py
-├── requirements.txt
-└── README.md
-```
-
-El paquete `src/abm_dependencia/` se mantiene como capa de compatibilidad con la primera version del proyecto y redirige al nuevo nucleo modular.
-
-## Instalacion
-
-Desde la raiz del repositorio:
+## Instalación
 
 ```powershell
 python -m venv .venv
@@ -85,57 +35,66 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-## Ejecucion de la simulacion
+## Comandos principales
 
 ```powershell
+# Simulación base + métricas (+ figuras)
 python -m src.run_simulation
+
+# Puerta ABM ↔ IMCV (paso 1)
+python -m src.run_imcv_validation
+
+# Dataset LHS × réplicas + hold-out de extrapolación (pasos 2–4)
+python -m src.run_experiments --method lhs --n-simulations 100 --n-extrapolation 15 --n-replicas 10
+
+# Equivalente vía scripts/
+python scripts/run_scenarios.py --n-simulations 100 --n-replicas 10
+
+# Scaffold de surrogates (bloquea si la puerta no pasa)
+python -m src.surrogates.train
+
+# Tests
+python -m pytest
 ```
 
-El comando ejecuta la simulacion base durante 60 meses y genera:
+## Estructura relevante
 
 ```text
-data/simulation_outputs/base_simulation.csv
-outputs/figures/evolucion_estados_saad.png
-outputs/figures/evolucion_grados_dependencia.png
-outputs/figures/evolucion_prestaciones.png
-outputs/figures/evolucion_estados_finales.png
-outputs/metrics/base_simulation_metrics.json
+src/
+├── model/                 # ABM Mesa
+├── analysis/              # métricas, wellbeing, IMCV, plots
+├── datasets/              # LHS, bounds, exporters, splits
+├── surrogates/            # catálogo + scaffold de entrenamiento
+├── run_simulation.py
+├── run_imcv_validation.py
+└── run_experiments.py
+data/
+├── raw/imcv_reference.csv           # plantilla IMCV (sustituir por oficiales)
+└── simulation_outputs/base_simulation.csv
+outputs/
+├── metrics/base_simulation_metrics.json
+├── metrics/abm_imcv_validation.json
+└── datasets/                        # mlp_dataset, splits, manifest+SHA256, graphs/
 ```
 
-## Generacion de datasets sinteticos
+## Dataset sintético
 
-Para preparar datos de entrenamiento posteriores para modelos sustitutos, se pueden ejecutar multiples simulaciones ABM con variaciones suaves de parametros. Por defecto se ejecutan 100 simulaciones:
+- Unidad experimental: **escenario** (`scenario_id` / `simulation_id`).  
+- Target principal: `target_wellbeing_proxy`.  
+- Secundarios: cobertura y lista de espera.  
+- `std_*`: varianza intra-escenario (suelo de error irreducible).  
+- Splits: `train` / `validation` / `test` / `extrapolation`.  
+- Manifest: `outputs/datasets/dataset_manifest.json` (incluye SHA256).
 
-```powershell
-python -m src.run_experiments
-```
+## Estado actual
 
-Este comando genera:
+| Bloque | Estado |
+|--------|--------|
+| ABM base + métricas internas | Listo |
+| Proxy bienestar | Listo |
+| Puerta IMCV (código + plantilla) | Listo — falta cargar IMCV oficial y cerrar decisión |
+| LHS + réplicas + hash + split extrapolación | Listo en código |
+| Entrenamiento/evaluación surrogates completa | Scaffold (siguiente incremento) |
+| Prototipo web | Pendiente |
 
-```text
-outputs/datasets/simulation_parameters.csv
-outputs/datasets/mlp_dataset.csv
-outputs/datasets/dataset_splits.csv
-outputs/datasets/graphs/nodes.csv
-outputs/datasets/graphs/edges.csv
-outputs/datasets/graphs/graph_targets.csv
-```
-
-La MLP usara `mlp_dataset.csv`. La GNN usara `nodes.csv`, `edges.csv` y `graph_targets.csv`. Ambas representaciones proceden de las mismas simulaciones ABM, comparten `simulation_id` y usan los mismos targets. La particion `train`/`validation`/`test` se realiza por `simulation_id`, no por filas individuales.
-
-Esta fase solo prepara salidas sinteticas para entrenamiento posterior. No incluye todavia entrenamiento de MLP, GNN, calibracion automatica ni comparacion con IMCV.
-
-Tambien pueden usarse las rutas historicas:
-
-```powershell
-python scripts/run_base_simulation.py
-python scripts/generate_plots.py
-```
-
-## Notebook exploratorio
-
-El notebook `notebooks/exploratory_analysis.ipynb` carga el CSV base, muestra las primeras filas, revisa columnas y estadisticos, comprueba la poblacion total simulada, resume los resultados finales y muestra las figuras principales.
-
-## Advertencia metodologica
-
-Los resultados actuales son una comprobacion funcional del ABM y una simulacion base exploratoria. No deben interpretarse como validacion empirica final, estimacion causal ni prediccion calibrada del sistema real. Las siguientes fases deberan incorporar contraste externo, analisis de sensibilidad, escenarios y justificacion empirica mas detallada.
+Documentación metodológica ampliada: `docs/metodologia.md`.

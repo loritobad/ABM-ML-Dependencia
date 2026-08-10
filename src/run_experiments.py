@@ -1,153 +1,303 @@
-"""Genera datasets sintéticos para modelos sustitutos MLP y GNN."""
+"""Genera datasets sintéticos para surrogates según la ruta metodológica.
+
+Pipeline:
+1. Muestreo LHS (interpolación) + hold-out de extrapolación
+2. ≥R réplicas por escenario; media y desviación de targets
+3. Export tabular (+ grafo opcional)
+4. Splits por scenario_id (train/val/test/extrapolation)
+5. Hash SHA256 del dataset principal
+"""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 from pathlib import Path
+from statistics import mean, pstdev
 
 import pandas as pd
 
 try:
     from .analysis.metrics import calculate_simulation_metrics
     from .datasets.graph_exporter import build_graph_tables, save_graph_dataset
-    from .datasets.mlp_exporter import TARGET_COLUMNS, build_mlp_row, save_mlp_dataset
-    from .datasets.scenario_sampler import flatten_parameters, sample_scenario
+    from .datasets.mlp_exporter import (
+        TARGET_COLUMNS,
+        VARIANCE_COLUMNS,
+        build_mlp_row,
+        save_mlp_dataset,
+    )
+    from .datasets.scenario_sampler import (
+        flatten_parameters,
+        sample_lhs_scenarios,
+        sample_scenarios,
+    )
     from .datasets.split_generator import generate_splits
     from .model.model import DependenceABM
     from .model.parameters import get_base_parameters
 except ImportError:
     from analysis.metrics import calculate_simulation_metrics
     from datasets.graph_exporter import build_graph_tables, save_graph_dataset
-    from datasets.mlp_exporter import TARGET_COLUMNS, build_mlp_row, save_mlp_dataset
-    from datasets.scenario_sampler import flatten_parameters, sample_scenario
+    from datasets.mlp_exporter import (
+        TARGET_COLUMNS,
+        VARIANCE_COLUMNS,
+        build_mlp_row,
+        save_mlp_dataset,
+    )
+    from datasets.scenario_sampler import (
+        flatten_parameters,
+        sample_lhs_scenarios,
+        sample_scenarios,
+    )
     from datasets.split_generator import generate_splits
     from model.model import DependenceABM
     from model.parameters import get_base_parameters
 
 
 N_SIMULATIONS = 100
+N_EXTRAPOLATION = 15
+N_REPLICAS = 10
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATASETS_DIR = PROJECT_ROOT / "outputs" / "datasets"
 GRAPHS_DIR = DATASETS_DIR / "graphs"
+MANIFEST_PATH = DATASETS_DIR / "dataset_manifest.json"
+
+
+def _average_metrics(metrics_list: list[dict]) -> tuple[dict, dict]:
+    """Promedia métricas numéricas y calcula desviaciones clave."""
+    keys = metrics_list[0].keys()
+    averaged: dict = {}
+    for key in keys:
+        values = [m[key] for m in metrics_list]
+        if all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in values):
+            averaged[key] = float(mean(values))
+        else:
+            averaged[key] = values[0]
+
+    std_metrics = {
+        "std_wellbeing_proxy": float(
+            pstdev([m["wellbeing_proxy"] for m in metrics_list])
+            if len(metrics_list) > 1
+            else 0.0
+        ),
+        "std_rate_prestacion_efectiva": float(
+            pstdev([m["rate_prestacion_efectiva"] for m in metrics_list])
+            if len(metrics_list) > 1
+            else 0.0
+        ),
+        "std_rate_lista_espera": float(
+            pstdev([m["rate_lista_espera"] for m in metrics_list])
+            if len(metrics_list) > 1
+            else 0.0
+        ),
+    }
+    return averaged, std_metrics
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def run_experiments(
     n_simulations: int = N_SIMULATIONS,
+    n_extrapolation: int = N_EXTRAPOLATION,
+    n_replicas: int = N_REPLICAS,
     random_seed: int = 42,
     initial_agents: int | None = None,
-) -> None:
-    """Ejecuta escenarios ABM y exporta representaciones tabular y relacional."""
+    method: str = "lhs",
+    build_graphs: bool = True,
+) -> dict:
+    """Ejecuta escenarios ABM y exporta representaciones para surrogates."""
     DATASETS_DIR.mkdir(parents=True, exist_ok=True)
     GRAPHS_DIR.mkdir(parents=True, exist_ok=True)
 
-    base_parameters = get_base_parameters()
-    if initial_agents is not None:
-        base_parameters["initial_vulnerable_population"] = initial_agents
+    if method == "lhs":
+        interpolation = sample_lhs_scenarios(
+            n_simulations,
+            seed=random_seed,
+            regime="interpolation",
+            initial_agents=initial_agents,
+        )
+        extrapolation = sample_lhs_scenarios(
+            n_extrapolation,
+            seed=random_seed + 10_000,
+            regime="extrapolation",
+            initial_agents=initial_agents,
+        )
+        # Reasignar IDs globales: interpolación 1..N, extrapolación N+1..
+        for offset, scenario in enumerate(extrapolation, start=1):
+            new_id = n_simulations + offset
+            scenario["scenario_id"] = new_id
+            scenario["simulation_id"] = new_id
+        scenarios = interpolation + extrapolation
+    else:
+        scenarios = sample_scenarios(
+            n_simulations,
+            seed=random_seed,
+            initial_agents=initial_agents,
+            method="legacy",
+        )
+        for scenario in scenarios:
+            scenario["regime"] = "legacy"
 
     parameter_rows = []
     mlp_rows = []
     node_rows = []
     edge_rows = []
     graph_target_rows = []
-    simulation_ids = list(range(1, n_simulations + 1))
+    simulation_ids = []
+    extrapolation_ids = []
 
-    for simulation_id in simulation_ids:
-        scenario_seed = random_seed + simulation_id
-        parameters = sample_scenario(base_parameters, random_seed=scenario_seed)
+    for scenario in scenarios:
+        simulation_id = int(scenario["simulation_id"])
+        parameters = scenario["parameters"]
+        regime = scenario.get("regime", "interpolation")
+        base_seed = int(scenario["seed"])
 
-        model = DependenceABM(parameters=parameters, seed=scenario_seed)
-        df = model.run()
-        metrics = calculate_simulation_metrics(df)
+        replica_metrics = []
+        last_df = None
+        for replica in range(n_replicas):
+            replica_seed = base_seed * 1000 + replica
+            model = DependenceABM(parameters=parameters, seed=replica_seed)
+            df = model.run()
+            last_df = df
+            replica_metrics.append(calculate_simulation_metrics(df))
 
+        metrics, std_metrics = _average_metrics(replica_metrics)
         parameter_rows.append(flatten_parameters(simulation_id, parameters))
-        mlp_rows.append(build_mlp_row(simulation_id, parameters, metrics))
+        mlp_rows.append(
+            build_mlp_row(
+                simulation_id,
+                parameters,
+                metrics,
+                regime=regime,
+                n_replicas=n_replicas,
+                std_metrics=std_metrics,
+            )
+        )
 
-        nodes, edges, graph_target = build_graph_tables(simulation_id, df, metrics)
-        node_rows.extend(nodes)
-        edge_rows.extend(edges)
-        graph_target_rows.append(graph_target)
+        if build_graphs and last_df is not None:
+            nodes, edges, graph_target = build_graph_tables(simulation_id, last_df, metrics)
+            node_rows.extend(nodes)
+            edge_rows.extend(edges)
+            graph_target_rows.append(graph_target)
 
-        print(f"Simulacion completada: {simulation_id}/{n_simulations}")
+        simulation_ids.append(simulation_id)
+        if regime == "extrapolation":
+            extrapolation_ids.append(simulation_id)
+
+        print(
+            f"Escenario {simulation_id}/{len(scenarios)} "
+            f"[{regime}] replicas={n_replicas} "
+            f"wellbeing={metrics['wellbeing_proxy']:.3f}"
+        )
+
+    splits = pd.DataFrame(
+        generate_splits(
+            simulation_ids,
+            random_seed=random_seed,
+            extrapolation_ids=extrapolation_ids,
+        )
+    )
 
     simulation_parameters = pd.DataFrame(parameter_rows)
     mlp_dataset = pd.DataFrame(mlp_rows)
-    nodes = pd.DataFrame(node_rows)
-    edges = pd.DataFrame(edge_rows)
-    graph_targets = pd.DataFrame(graph_target_rows)
-    splits = pd.DataFrame(generate_splits(simulation_ids, random_seed=random_seed))
 
     _validate_outputs(
-        n_simulations=n_simulations,
+        n_expected=len(scenarios),
         mlp_dataset=mlp_dataset,
-        nodes=nodes,
-        edges=edges,
-        graph_targets=graph_targets,
+        graph_targets=pd.DataFrame(graph_target_rows) if graph_target_rows else None,
         splits=splits,
+        build_graphs=build_graphs,
     )
 
     simulation_parameters.to_csv(DATASETS_DIR / "simulation_parameters.csv", index=False)
-    save_mlp_dataset(mlp_rows, DATASETS_DIR / "mlp_dataset.csv")
-    save_graph_dataset(node_rows, edge_rows, graph_target_rows, GRAPHS_DIR)
+    mlp_path = DATASETS_DIR / "mlp_dataset.csv"
+    save_mlp_dataset(mlp_rows, mlp_path)
     splits.to_csv(DATASETS_DIR / "dataset_splits.csv", index=False)
 
+    if build_graphs:
+        save_graph_dataset(node_rows, edge_rows, graph_target_rows, GRAPHS_DIR)
+
+    dataset_hash = _sha256_file(mlp_path)
+    manifest = {
+        "method": method,
+        "n_interpolation_scenarios": n_simulations if method == "lhs" else len(scenarios),
+        "n_extrapolation_scenarios": n_extrapolation if method == "lhs" else 0,
+        "n_replicas": n_replicas,
+        "random_seed": random_seed,
+        "target_columns": TARGET_COLUMNS,
+        "variance_columns": VARIANCE_COLUMNS,
+        "mlp_dataset": str(mlp_path.relative_to(PROJECT_ROOT)),
+        "sha256_mlp_dataset": dataset_hash,
+        "splits": str((DATASETS_DIR / "dataset_splits.csv").relative_to(PROJECT_ROOT)),
+        "note": (
+            "Unidad experimental = escenario. Targets promediados sobre réplicas. "
+            "std_* estima el suelo de error irreducible intra-escenario."
+        ),
+    }
+    with MANIFEST_PATH.open("w", encoding="utf-8") as handle:
+        json.dump(manifest, handle, indent=2, ensure_ascii=False)
+
     print("\nResumen de generación de datasets")
-    print(f"Simulaciones ejecutadas: {n_simulations}")
-    print(f"Dataset MLP: {DATASETS_DIR / 'mlp_dataset.csv'}")
-    print(f"Filas MLP: {len(mlp_dataset)}")
-    print(f"Nodos generados: {len(nodes)}")
-    print(f"Aristas generadas: {len(edges)}")
-    print(f"Graph targets: {GRAPHS_DIR / 'graph_targets.csv'}")
-    print(f"Splits: {DATASETS_DIR / 'dataset_splits.csv'}")
+    print(f"Escenarios: {len(scenarios)}")
+    print(f"Réplicas por escenario: {n_replicas}")
+    print(f"Dataset: {mlp_path}")
+    print(f"SHA256: {dataset_hash}")
+    print(f"Manifest: {MANIFEST_PATH}")
+    return manifest
 
 
 def _validate_outputs(
-    n_simulations: int,
+    n_expected: int,
     mlp_dataset: pd.DataFrame,
-    nodes: pd.DataFrame,
-    edges: pd.DataFrame,
-    graph_targets: pd.DataFrame,
+    graph_targets: pd.DataFrame | None,
     splits: pd.DataFrame,
+    build_graphs: bool,
 ) -> None:
-    """Valida consistencia básica entre datasets MLP y GNN."""
-    if len(mlp_dataset) != n_simulations:
-        raise ValueError("mlp_dataset.csv debe tener N_SIMULATIONS filas.")
-    if len(graph_targets) != n_simulations:
-        raise ValueError("graph_targets.csv debe tener N_SIMULATIONS filas.")
+    if len(mlp_dataset) != n_expected:
+        raise ValueError("mlp_dataset.csv debe tener una fila por escenario.")
+    if "target_wellbeing_proxy" not in mlp_dataset.columns:
+        raise ValueError("Falta target_wellbeing_proxy en el dataset.")
 
     mlp_ids = set(mlp_dataset["simulation_id"])
-    target_ids = set(graph_targets["simulation_id"])
-    node_ids = set(nodes["simulation_id"])
-    edge_ids = set(edges["simulation_id"])
     split_ids = set(splits["simulation_id"])
-
-    if mlp_ids != target_ids:
-        raise ValueError("Los simulation_id de MLP y graph_targets no coinciden.")
-    if not node_ids.issubset(target_ids):
-        raise ValueError("nodes.csv contiene simulation_id ausentes en graph_targets.")
-    if not edge_ids.issubset(target_ids):
-        raise ValueError("edges.csv contiene simulation_id ausentes en graph_targets.")
-    if split_ids != target_ids:
+    if split_ids != mlp_ids:
         raise ValueError("dataset_splits.csv no contiene todos los simulation_id.")
 
-    mlp_targets = mlp_dataset[["simulation_id", *TARGET_COLUMNS]].sort_values(
-        "simulation_id"
-    )
-    graph_target_values = graph_targets[
-        ["simulation_id", *TARGET_COLUMNS]
-    ].sort_values("simulation_id")
-    if not mlp_targets.reset_index(drop=True).equals(
-        graph_target_values.reset_index(drop=True)
-    ):
-        raise ValueError("Los targets de MLP y GNN no coinciden por simulation_id.")
+    if build_graphs and graph_targets is not None and not graph_targets.empty:
+        target_ids = set(graph_targets["simulation_id"])
+        if mlp_ids != target_ids:
+            raise ValueError("Los simulation_id de MLP y graph_targets no coinciden.")
+        shared = ["simulation_id", *TARGET_COLUMNS]
+        mlp_targets = mlp_dataset[shared].sort_values("simulation_id")
+        graph_target_values = graph_targets[shared].sort_values("simulation_id")
+        if not mlp_targets.reset_index(drop=True).equals(
+            graph_target_values.reset_index(drop=True)
+        ):
+            raise ValueError("Los targets de MLP y GNN no coinciden por simulation_id.")
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Genera datasets sintéticos ABM para MLP y GNN."
+        description="Genera datasets sintéticos ABM (LHS × réplicas) para surrogates."
     )
     parser.add_argument("--n-simulations", type=int, default=N_SIMULATIONS)
+    parser.add_argument("--n-extrapolation", type=int, default=N_EXTRAPOLATION)
+    parser.add_argument("--n-replicas", type=int, default=N_REPLICAS)
     parser.add_argument("--random-seed", "--seed", dest="random_seed", type=int, default=42)
     parser.add_argument("--initial-agents", type=int, default=None)
+    parser.add_argument(
+        "--method",
+        choices=["lhs", "legacy"],
+        default="lhs",
+        help="lhs = ruta metodológica; legacy = perturbación ±10%.",
+    )
+    parser.add_argument("--no-graphs", action="store_true")
     return parser.parse_args()
 
 
@@ -155,8 +305,12 @@ def main() -> None:
     args = parse_args()
     run_experiments(
         n_simulations=args.n_simulations,
+        n_extrapolation=args.n_extrapolation,
+        n_replicas=args.n_replicas,
         random_seed=args.random_seed,
         initial_agents=args.initial_agents,
+        method=args.method,
+        build_graphs=not args.no_graphs,
     )
 
 

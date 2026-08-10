@@ -11,12 +11,25 @@ if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
 from analysis.metrics import calculate_simulation_metrics  # noqa: E402
+from analysis.wellbeing import estimate_wellbeing_proxy  # noqa: E402
 from datasets.graph_exporter import build_graph_tables  # noqa: E402
 from datasets.mlp_exporter import TARGET_COLUMNS, build_mlp_row  # noqa: E402
-from datasets.scenario_sampler import sample_scenario  # noqa: E402
+from datasets.scenario_sampler import sample_lhs_scenarios, sample_scenario  # noqa: E402
 from datasets.split_generator import generate_splits  # noqa: E402
 from model.model import DependenceABM  # noqa: E402
 from model.parameters import get_base_parameters  # noqa: E402
+
+
+def test_wellbeing_proxy_is_bounded() -> None:
+    proxy = estimate_wellbeing_proxy(
+        {
+            "rate_prestacion_efectiva": 0.5,
+            "rate_lista_espera": 0.2,
+            "rate_sin_grado": 0.1,
+            "rate_grado_III": 0.25,
+        }
+    )
+    assert 0.0 <= proxy <= 10.0
 
 
 def test_mlp_and_graph_exports_share_simulation_id_and_targets() -> None:
@@ -28,20 +41,36 @@ def test_mlp_and_graph_exports_share_simulation_id_and_targets() -> None:
     results = model.run()
     metrics = calculate_simulation_metrics(results)
 
-    mlp_row = build_mlp_row(1, parameters, metrics)
+    assert "wellbeing_proxy" in metrics
+    mlp_row = build_mlp_row(1, parameters, metrics, regime="interpolation", n_replicas=1)
     nodes, edges, graph_targets = build_graph_tables(1, results, metrics)
 
     assert mlp_row["simulation_id"] == graph_targets["simulation_id"]
+    assert "target_wellbeing_proxy" in mlp_row
     assert all(mlp_row[key] == graph_targets[key] for key in TARGET_COLUMNS)
     assert len(nodes) == 16
     assert len(edges) == 15
 
 
-def test_splits_are_generated_by_simulation_id() -> None:
-    splits = generate_splits(list(range(1, 11)), random_seed=42)
+def test_lhs_scenarios_are_reproducible() -> None:
+    a = sample_lhs_scenarios(4, seed=123, regime="interpolation")
+    b = sample_lhs_scenarios(4, seed=123, regime="interpolation")
+    assert len(a) == 4
+    assert a[0]["parameters"]["prob_prestacion_efectiva"] == b[0]["parameters"][
+        "prob_prestacion_efectiva"
+    ]
+    assert a[0]["regime"] == "interpolation"
 
-    simulation_ids = [row["simulation_id"] for row in splits]
-    split_values = {row["split"] for row in splits}
 
-    assert len(simulation_ids) == len(set(simulation_ids))
-    assert split_values.issubset({"train", "validation", "test"})
+def test_splits_include_extrapolation_holdout() -> None:
+    splits = generate_splits(
+        list(range(1, 11)),
+        random_seed=42,
+        extrapolation_ids=[11, 12],
+    )
+    by_id = {row["simulation_id"]: row["split"] for row in splits}
+    assert by_id[11] == "extrapolation"
+    assert by_id[12] == "extrapolation"
+    assert set(by_id[i] for i in range(1, 11)).issubset(
+        {"train", "validation", "test"}
+    )

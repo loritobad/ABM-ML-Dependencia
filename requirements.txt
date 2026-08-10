@@ -3,3 +3,6 @@ numpy
 matplotlib
 mesa
 jupyter
+scikit-learn
+scipy
+pytest

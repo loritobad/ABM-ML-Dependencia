@@ -8,6 +8,8 @@ from typing import Any
 
 import pandas as pd
 
+from .wellbeing import estimate_wellbeing_proxy
+
 
 def _safe_rate(numerator: float, denominator: float) -> float:
     """Calcula una tasa evitando divisiones por cero."""
@@ -125,6 +127,7 @@ def calculate_simulation_metrics(df: pd.DataFrame) -> dict:
             ordered_df["lista_espera"].is_monotonic_increasing
         ),
     }
+    metrics["wellbeing_proxy"] = estimate_wellbeing_proxy(metrics)
     return {key: _to_builtin(value) for key, value in metrics.items()}
 
 
