@@ -61,15 +61,15 @@ def plot_grados_dependencia(df: pd.DataFrame, output_path: str | Path) -> None:
 
 def plot_prestaciones(df: pd.DataFrame, output_path: str | Path) -> None:
     """Genera la evolución de las prestaciones finales consideradas."""
+    try:
+        from ..model.parameters import BENEFIT_KEYS
+    except ImportError:  # pragma: no cover
+        from model.parameters import BENEFIT_KEYS
+
     _plot_lines(
         df,
-        [
-            "teleasistencia",
-            "ayuda_domicilio",
-            "atencion_residencial",
-            "cuidados_familiares",
-        ],
-        "Evolución mensual de prestaciones asignadas",
+        list(BENEFIT_KEYS),
+        "Evolución mensual de prestaciones asignadas (8 categorías v1)",
         output_path,
     )
 

@@ -48,8 +48,8 @@ def test_mlp_and_graph_exports_share_simulation_id_and_targets() -> None:
     assert mlp_row["simulation_id"] == graph_targets["simulation_id"]
     assert "target_wellbeing_proxy" in mlp_row
     assert all(mlp_row[key] == graph_targets[key] for key in TARGET_COLUMNS)
-    assert len(nodes) == 16
-    assert len(edges) == 15
+    assert len(nodes) == 20
+    assert len(edges) == 19
 
 
 def test_lhs_scenarios_are_reproducible() -> None:

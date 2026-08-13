@@ -56,6 +56,11 @@ def build_mlp_row(
     std_metrics: dict | None = None,
 ) -> dict:
     """Genera una fila plana de parámetros de entrada y targets."""
+    try:
+        from ..model.parameters import BENEFIT_KEYS
+    except ImportError:  # pragma: no cover
+        from model.parameters import BENEFIT_KEYS
+
     grados = parameters["distribucion_grados"]
     prestaciones = parameters["distribucion_prestaciones"]
     row = {
@@ -66,19 +71,29 @@ def build_mlp_row(
         "initial_vulnerable_population": parameters["initial_vulnerable_population"],
         "simulation_months": parameters["simulation_months"],
         "prob_solicitud_mensual": parameters["prob_solicitud_mensual"],
-        "prob_reconocimiento_grado": parameters["prob_reconocimiento_grado"],
+        "prob_solicitud_si_vulnerable": parameters.get(
+            "prob_solicitud_si_vulnerable", parameters["prob_solicitud_mensual"]
+        ),
+        "prob_resolucion_grado_mensual": parameters.get(
+            "prob_resolucion_grado_mensual",
+            parameters.get("prob_reconocimiento_grado"),
+        ),
         "prob_con_derecho": parameters["prob_con_derecho"],
-        "prob_pia": parameters["prob_pia"],
+        "prob_pia_mensual": parameters.get(
+            "prob_pia_mensual", parameters.get("prob_pia")
+        ),
         "prob_prestacion_efectiva": parameters["prob_prestacion_efectiva"],
         "prob_lista_espera": parameters["prob_lista_espera"],
+        "meses_min_pendiente_grado": parameters.get("meses_min_pendiente_grado"),
+        "meses_min_tramite_prestacion": parameters.get("meses_min_tramite_prestacion"),
         "prob_grado_I": grados["I"],
         "prob_grado_II": grados["II"],
         "prob_grado_III": grados["III"],
-        "prob_teleasistencia": prestaciones["teleasistencia"],
-        "prob_ayuda_domicilio": prestaciones["ayuda_domicilio"],
-        "prob_atencion_residencial": prestaciones["atencion_residencial"],
-        "prob_cuidados_familiares": prestaciones["cuidados_familiares"],
+        "pension_media_nacional": parameters.get("pension_media_nacional"),
+        "prop_nacional_65": parameters.get("prop_nacional_65"),
     }
+    for key in BENEFIT_KEYS:
+        row[f"prob_{key}"] = prestaciones[key]
     row.update(build_targets(metrics))
     if std_metrics:
         row.update(std_metrics)

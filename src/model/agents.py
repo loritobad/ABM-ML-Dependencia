@@ -1,4 +1,4 @@
-"""Agentes del modelo de dependencia."""
+"""Agentes del modelo de dependencia — mapeo operativo v1."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from mesa import Agent
 
 
 class DependenciaAgent(Agent):
-    """Agente individual que transita por el circuito administrativo SAAD."""
+    """Agente que transita por el circuito SAAD con salud inicial y delays."""
 
     NO_SOLICITANTE = "no_solicitante"
     PENDIENTE_GRADO = "pendiente_grado"
@@ -27,10 +27,18 @@ class DependenciaAgent(Agent):
         self.grado_dependencia: Optional[str] = None
         self.tipo_prestacion: Optional[str] = None
         self.meses_en_estado = 0
+        self.meses_tramite_prestacion = 0
+
+        # Contexto Tabla 7 (v1)
+        self.grupo_edad = self._sortear_grupo_edad()
+        self.vulnerabilidad_sanitaria = self._sortear_vulnerabilidad()
+        self.salud_autopercibida = self._sortear_salud()
 
     def step(self) -> None:
         """Avanza un mes la situación administrativa del agente."""
         self.meses_en_estado += 1
+        if self.estado_saad in (self.CON_DERECHO, self.CON_PIA):
+            self.meses_tramite_prestacion += 1
 
         if self.estado_saad == self.NO_SOLICITANTE:
             self._solicitar_si_corresponde()
@@ -39,31 +47,60 @@ class DependenciaAgent(Agent):
         elif self.estado_saad == self.CON_DERECHO:
             self._tramitar_pia_si_corresponde()
         elif self.estado_saad == self.CON_PIA:
-            self._resolver_prestacion()
+            self._resolver_prestacion_si_corresponde()
 
     def _cambiar_estado(self, nuevo_estado: str) -> None:
         self.estado_saad = nuevo_estado
         self.meses_en_estado = 0
 
+    def _sortear_grupo_edad(self) -> str:
+        dist = self.model.params["distribucion_grupos_edad"]
+        return self.random.choices(list(dist.keys()), weights=list(dist.values()), k=1)[
+            0
+        ]
+
+    def _sortear_vulnerabilidad(self) -> bool:
+        p = self.model.params["prob_vulnerabilidad_por_edad"][self.grupo_edad]
+        return self.random.random() < p
+
+    def _sortear_salud(self) -> str:
+        dist = self.model.params["distribucion_salud_autopercibida"]
+        return self.random.choices(list(dist.keys()), weights=list(dist.values()), k=1)[
+            0
+        ]
+
+    def _prob_solicitud(self) -> float:
+        if self.vulnerabilidad_sanitaria:
+            return float(self.model.params["prob_solicitud_si_vulnerable"])
+        return float(self.model.params["prob_solicitud_mensual"])
+
     def _solicitar_si_corresponde(self) -> None:
-        if self.random.random() < self.model.params["prob_solicitud_mensual"]:
+        if self.random.random() < self._prob_solicitud():
             self._cambiar_estado(self.PENDIENTE_GRADO)
 
     def _resolver_grado_si_corresponde(self) -> None:
-        if self.random.random() >= self.model.params["prob_reconocimiento_grado"]:
+        min_meses = int(self.model.params["meses_min_pendiente_grado"])
+        if self.meses_en_estado < min_meses:
+            return
+        if self.random.random() >= self.model.params["prob_resolucion_grado_mensual"]:
             return
 
         if self.random.random() < self.model.params["prob_con_derecho"]:
             self.grado_dependencia = self._sortear_grado()
+            self.meses_tramite_prestacion = 0
             self._cambiar_estado(self.CON_DERECHO)
         else:
             self._cambiar_estado(self.SIN_GRADO)
 
     def _tramitar_pia_si_corresponde(self) -> None:
-        if self.random.random() < self.model.params["prob_pia"]:
+        if self.random.random() < self.model.params["prob_pia_mensual"]:
             self._cambiar_estado(self.CON_PIA)
 
-    def _resolver_prestacion(self) -> None:
+    def _resolver_prestacion_si_corresponde(self) -> None:
+        min_tramite = int(self.model.params["meses_min_tramite_prestacion"])
+        if self.meses_tramite_prestacion < min_tramite:
+            return
+
         weights = [
             self.model.params["prob_prestacion_efectiva"],
             self.model.params["prob_lista_espera"],

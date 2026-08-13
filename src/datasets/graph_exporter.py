@@ -8,6 +8,11 @@ import pandas as pd
 
 from .mlp_exporter import build_targets
 
+try:
+    from ..model.parameters import BENEFIT_KEYS
+except ImportError:  # pragma: no cover
+    from model.parameters import BENEFIT_KEYS
+
 
 NODE_TYPES = {
     "sistema": "system",
@@ -22,19 +27,11 @@ NODE_TYPES = {
     "grado_I": "degree",
     "grado_II": "degree",
     "grado_III": "degree",
-    "teleasistencia": "benefit",
-    "ayuda_domicilio": "benefit",
-    "atencion_residencial": "benefit",
-    "cuidados_familiares": "benefit",
 }
+NODE_TYPES.update({key: "benefit" for key in BENEFIT_KEYS})
 
 DEGREE_NODES = ["grado_I", "grado_II", "grado_III"]
-BENEFIT_NODES = [
-    "teleasistencia",
-    "ayuda_domicilio",
-    "atencion_residencial",
-    "cuidados_familiares",
-]
+BENEFIT_NODES = list(BENEFIT_KEYS)
 
 EDGE_SPECS = [
     ("sistema", "vulnerables", "hierarchy"),
@@ -48,10 +45,8 @@ EDGE_SPECS = [
     ("con_derecho", "grado_I", "degree_assignment"),
     ("con_derecho", "grado_II", "degree_assignment"),
     ("con_derecho", "grado_III", "degree_assignment"),
-    ("prestacion_efectiva", "teleasistencia", "benefit_assignment"),
-    ("prestacion_efectiva", "ayuda_domicilio", "benefit_assignment"),
-    ("prestacion_efectiva", "atencion_residencial", "benefit_assignment"),
-    ("prestacion_efectiva", "cuidados_familiares", "benefit_assignment"),
+] + [
+    ("prestacion_efectiva", key, "benefit_assignment") for key in BENEFIT_KEYS
 ]
 
 

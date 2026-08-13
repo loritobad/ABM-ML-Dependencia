@@ -1,41 +1,48 @@
-"""Rangos paramétricos defendibles para el muestreo LHS (Tablas 6–14 del TFM).
+"""Rangos paramétricos LHS alineados al mapeo operativo v1 (Tablas 6–13).
 
-Los valores centrales coinciden con DEFAULT_PARAMETERS. Los mínimos/máximos
-representan rangos plausibles derivados de la parametrización empírica del
-capítulo 4; pueden ajustarse sin cambiar la API del sampler.
+Los valores centrales coinciden con DEFAULT_PARAMETERS del contrato v1.
 """
 
 from __future__ import annotations
 
 from copy import deepcopy
 
-from ..model.parameters import get_base_parameters
+try:
+    from ..model.parameters import BENEFIT_KEYS, GRADE_KEYS, get_base_parameters
+except ImportError:  # pragma: no cover
+    from model.parameters import BENEFIT_KEYS, GRADE_KEYS, get_base_parameters
 
-# (min, max) para variables continuas muestreables por LHS
+# Reexport for samplers
+__all__ = [
+    "LHS_PARAMETER_BOUNDS",
+    "LHS_EXTRAPOLATION_BOUNDS",
+    "BENEFIT_KEYS",
+    "GRADE_KEYS",
+    "base_with_bounds",
+]
+
+# Variables continuas muestreables por LHS (núcleo SAAD v1)
 LHS_PARAMETER_BOUNDS: dict[str, tuple[float, float]] = {
-    "prob_solicitud_mensual": (0.020, 0.055),
-    "prob_reconocimiento_grado": (0.100, 0.280),
-    "prob_con_derecho": (0.650, 0.900),
-    "prob_pia": (0.120, 0.350),
-    "prob_prestacion_efectiva": (0.450, 0.850),
+    "prob_solicitud_mensual": (0.020, 0.050),
+    "prob_solicitud_si_vulnerable": (0.035, 0.080),
+    "prob_resolucion_grado_mensual": (0.200, 0.500),
+    "prob_con_derecho": (0.7935, 0.8060),
+    "prob_pia_mensual": (0.250, 0.550),
+    "prob_prestacion_efectiva": (0.850, 0.990),
+    "meses_min_pendiente_grado": (5.0, 12.0),
+    "meses_min_tramite_prestacion": (1.0, 6.0),
 }
 
-# Extremos usados para el hold-out de extrapolación (fuera o en el borde)
 LHS_EXTRAPOLATION_BOUNDS: dict[str, tuple[float, float]] = {
-    "prob_solicitud_mensual": (0.015, 0.065),
-    "prob_reconocimiento_grado": (0.080, 0.320),
-    "prob_con_derecho": (0.550, 0.950),
-    "prob_pia": (0.080, 0.420),
-    "prob_prestacion_efectiva": (0.350, 0.920),
+    "prob_solicitud_mensual": (0.015, 0.060),
+    "prob_solicitud_si_vulnerable": (0.025, 0.100),
+    "prob_resolucion_grado_mensual": (0.150, 0.600),
+    "prob_con_derecho": (0.750, 0.850),
+    "prob_pia_mensual": (0.150, 0.650),
+    "prob_prestacion_efectiva": (0.700, 0.995),
+    "meses_min_pendiente_grado": (3.0, 14.0),
+    "meses_min_tramite_prestacion": (0.0, 8.0),
 }
-
-GRADE_KEYS = ("I", "II", "III")
-BENEFIT_KEYS = (
-    "teleasistencia",
-    "ayuda_domicilio",
-    "atencion_residencial",
-    "cuidados_familiares",
-)
 
 
 def base_with_bounds() -> dict:

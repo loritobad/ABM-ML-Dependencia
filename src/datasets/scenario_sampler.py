@@ -81,16 +81,21 @@ def sample_scenario(
 
     for key in [
         "prob_solicitud_mensual",
-        "prob_reconocimiento_grado",
+        "prob_solicitud_si_vulnerable",
+        "prob_resolucion_grado_mensual",
         "prob_con_derecho",
-        "prob_pia",
+        "prob_pia_mensual",
         "prob_prestacion_efectiva",
     ]:
-        parameters[key] = perturb_probability(parameters[key], rng=rng)
+        if key in parameters:
+            parameters[key] = perturb_probability(parameters[key], rng=rng)
 
     parameters["prob_lista_espera"] = clip_probability(
         1.0 - parameters["prob_prestacion_efectiva"]
     )
+    # Alias legacy
+    parameters["prob_reconocimiento_grado"] = parameters["prob_resolucion_grado_mensual"]
+    parameters["prob_pia"] = parameters["prob_pia_mensual"]
     parameters["distribucion_grados"] = perturb_distribution(
         parameters["distribucion_grados"], rng=rng
     )
@@ -145,13 +150,20 @@ def build_parameters_from_lhs_row(
         )
 
     parameters = deepcopy(base_parameters or get_base_parameters())
+    month_keys = {"meses_min_pendiente_grado", "meses_min_tramite_prestacion"}
     for index, key in enumerate(keys):
         low, high = bounds[key]
-        parameters[key] = clip_probability(_map_unit_to_bounds(unit_row[index], low, high))
+        raw = _map_unit_to_bounds(unit_row[index], low, high)
+        if key in month_keys:
+            parameters[key] = int(round(raw))
+        else:
+            parameters[key] = clip_probability(raw)
 
     parameters["prob_lista_espera"] = clip_probability(
         1.0 - parameters["prob_prestacion_efectiva"]
     )
+    parameters["prob_reconocimiento_grado"] = parameters["prob_resolucion_grado_mensual"]
+    parameters["prob_pia"] = parameters["prob_pia_mensual"]
 
     local_rng = rng or np.random.default_rng(0)
     # Distribuciones categóricas: Dirichlet suave centrada en la base
@@ -252,21 +264,35 @@ def flatten_parameters(simulation_id: int, parameters: dict) -> dict:
     """Convierte parámetros anidados en una fila para CSV."""
     grados = parameters["distribucion_grados"]
     prestaciones = parameters["distribucion_prestaciones"]
-    return {
+    row = {
         "simulation_id": simulation_id,
         "initial_vulnerable_population": parameters["initial_vulnerable_population"],
         "simulation_months": parameters["simulation_months"],
         "prob_solicitud_mensual": parameters["prob_solicitud_mensual"],
-        "prob_reconocimiento_grado": parameters["prob_reconocimiento_grado"],
+        "prob_solicitud_si_vulnerable": parameters.get(
+            "prob_solicitud_si_vulnerable", parameters["prob_solicitud_mensual"]
+        ),
+        "prob_resolucion_grado_mensual": parameters.get(
+            "prob_resolucion_grado_mensual",
+            parameters.get("prob_reconocimiento_grado"),
+        ),
+        "prob_reconocimiento_grado": parameters.get(
+            "prob_reconocimiento_grado",
+            parameters.get("prob_resolucion_grado_mensual"),
+        ),
         "prob_con_derecho": parameters["prob_con_derecho"],
-        "prob_pia": parameters["prob_pia"],
+        "prob_pia_mensual": parameters.get("prob_pia_mensual", parameters.get("prob_pia")),
+        "prob_pia": parameters.get("prob_pia", parameters.get("prob_pia_mensual")),
         "prob_prestacion_efectiva": parameters["prob_prestacion_efectiva"],
         "prob_lista_espera": parameters["prob_lista_espera"],
+        "meses_min_pendiente_grado": parameters.get("meses_min_pendiente_grado"),
+        "meses_min_tramite_prestacion": parameters.get("meses_min_tramite_prestacion"),
         "prob_grado_I": grados["I"],
         "prob_grado_II": grados["II"],
         "prob_grado_III": grados["III"],
-        "prob_teleasistencia": prestaciones["teleasistencia"],
-        "prob_ayuda_domicilio": prestaciones["ayuda_domicilio"],
-        "prob_atencion_residencial": prestaciones["atencion_residencial"],
-        "prob_cuidados_familiares": prestaciones["cuidados_familiares"],
+        "pension_media_nacional": parameters.get("pension_media_nacional"),
+        "prop_nacional_65": parameters.get("prop_nacional_65"),
     }
+    for key in BENEFIT_KEYS:
+        row[f"prob_{key}"] = prestaciones[key]
+    return row

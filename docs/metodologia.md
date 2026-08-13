@@ -11,9 +11,14 @@ Cadena de incertidumbre: surrogate → ABM → realidad (IMCV).
 
 ## Representación del modelo
 
-Modelo Mesa con ticks mensuales del circuito SAAD:
+Modelo Mesa (**mapeo operativo v1**) con ticks mensuales del circuito SAAD:
 
 `no_solicitante → pendiente_grado → (sin_grado | con_derecho → con_pia → prestacion_efectiva | lista_espera)`
+
+- Agente: estado SAAD, grado, prestación, `grupo_edad`, `vulnerabilidad_sanitaria`, `salud_autopercibida`.
+- Delays: `meses_min_pendiente_grado` (≈8), `meses_min_tramite_prestacion` (≈3).
+- Prestaciones: **ocho** categorías (Tabla 12).
+- Contrato: `tema/mapeo-operativo-4.4.md` (workspace TFM).
 
 Salida operativa: **CSV mensual agregado** (`data/simulation_outputs/base_simulation.csv`), no panel agente-mes.
 

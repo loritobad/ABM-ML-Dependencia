@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover
+    load_dotenv = None
 
 try:
     from .analysis.metrics import calculate_simulation_metrics, save_metrics
@@ -33,9 +39,20 @@ METRICS_OUTPUT = PROJECT_ROOT / "outputs" / "metrics" / "base_simulation_metrics
 
 
 def main() -> None:
-    """Ejecuta 60 meses de simulación base y exporta CSV y figuras."""
+    """Ejecuta la simulación base (parámetros desde .env si existen) y exporta salidas."""
+    if load_dotenv is not None:
+        load_dotenv(PROJECT_ROOT / ".env")
+
     parameters = get_base_parameters()
-    model = DependenciaABM(parameters=parameters, seed=42)
+    if os.getenv("ABM_SIMULATION_MONTHS"):
+        parameters["simulation_months"] = int(os.environ["ABM_SIMULATION_MONTHS"])
+    if os.getenv("ABM_INITIAL_VULNERABLE_POPULATION"):
+        parameters["initial_vulnerable_population"] = int(
+            os.environ["ABM_INITIAL_VULNERABLE_POPULATION"]
+        )
+    seed = int(os.getenv("ABM_SEED", "42"))
+
+    model = DependenciaABM(parameters=parameters, seed=seed)
     model.run_model(parameters["simulation_months"])
     results = model.get_results()
 
@@ -48,11 +65,21 @@ def main() -> None:
     plot_estados_finales(results, FIGURES_DIR / "evolucion_estados_finales.png")
 
     metrics = calculate_simulation_metrics(results)
+    metrics["seed"] = seed
+    metrics["mapeo_version"] = os.getenv("ABM_MAPEO_VERSION", "v1")
     save_metrics(metrics, METRICS_OUTPUT)
 
     print(f"CSV generado: {SIMULATION_OUTPUT}")
     print(f"Figuras generadas en: {FIGURES_DIR}")
     print(f"Metricas generadas: {METRICS_OUTPUT}")
+    print(
+        "Resumen mes final: "
+        f"prestacion={metrics['final_prestacion_efectiva']} "
+        f"lista={metrics['final_lista_espera']} "
+        f"sin_grado={metrics['final_sin_grado']} "
+        f"no_sol={metrics['final_no_solicitantes']} "
+        f"wellbeing={metrics['wellbeing_proxy']:.3f}"
+    )
 
 
 if __name__ == "__main__":

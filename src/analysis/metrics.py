@@ -29,6 +29,11 @@ def _to_builtin(value: Any) -> Any:
 
 def calculate_simulation_metrics(df: pd.DataFrame) -> dict:
     """Calcula métricas internas y descriptivas de la simulación base."""
+    try:
+        from ..model.parameters import BENEFIT_KEYS
+    except ImportError:  # pragma: no cover
+        from model.parameters import BENEFIT_KEYS
+
     if df.empty:
         raise ValueError("El DataFrame de simulación no puede estar vacío.")
 
@@ -40,12 +45,7 @@ def calculate_simulation_metrics(df: pd.DataFrame) -> dict:
     total_grados = float(
         final_row["grado_I"] + final_row["grado_II"] + final_row["grado_III"]
     )
-    total_prestaciones = float(
-        final_row["teleasistencia"]
-        + final_row["ayuda_domicilio"]
-        + final_row["atencion_residencial"]
-        + final_row["cuidados_familiares"]
-    )
+    total_prestaciones = float(sum(float(final_row[k]) for k in BENEFIT_KEYS))
 
     exceeds_mask = (
         ordered_df["prestacion_efectiva"] > ordered_df["no_solicitantes"]
@@ -94,27 +94,16 @@ def calculate_simulation_metrics(df: pd.DataFrame) -> dict:
         "rate_grado_I": _safe_rate(final_row["grado_I"], total_grados),
         "rate_grado_II": _safe_rate(final_row["grado_II"], total_grados),
         "rate_grado_III": _safe_rate(final_row["grado_III"], total_grados),
-        "final_teleasistencia": int(final_row["teleasistencia"]),
-        "final_ayuda_domicilio": int(final_row["ayuda_domicilio"]),
-        "final_atencion_residencial": int(final_row["atencion_residencial"]),
-        "final_cuidados_familiares": int(final_row["cuidados_familiares"]),
-        "rate_teleasistencia": _safe_rate(
-            final_row["teleasistencia"], total_prestaciones
-        ),
-        "rate_ayuda_domicilio": _safe_rate(
-            final_row["ayuda_domicilio"], total_prestaciones
-        ),
-        "rate_atencion_residencial": _safe_rate(
-            final_row["atencion_residencial"], total_prestaciones
-        ),
-        "rate_cuidados_familiares": _safe_rate(
-            final_row["cuidados_familiares"], total_prestaciones
-        ),
+        "final_vuln_sanitaria": int(final_row.get("vuln_sanitaria", 0)),
         "month_prestacion_effectiva_exceeds_no_solicitantes": month_exceeds,
         "mean_monthly_increase_prestacion_efectiva": float(prestacion_diff.mean()),
         "mean_monthly_increase_lista_espera": float(lista_espera_diff.mean()),
-        "max_monthly_increase_prestacion_efectiva": int(prestacion_diff.max()),
-        "max_monthly_increase_lista_espera": int(lista_espera_diff.max()),
+        "max_monthly_increase_prestacion_efectiva": int(prestacion_diff.max())
+        if len(prestacion_diff)
+        else 0,
+        "max_monthly_increase_lista_espera": int(lista_espera_diff.max())
+        if len(lista_espera_diff)
+        else 0,
         "has_negative_values": bool((ordered_df[numeric_columns] < 0).any().any()),
         "vulnerable_population_constant": bool(ordered_df["vulnerables"].nunique() == 1),
         "no_solicitantes_monotonic_decreasing": bool(
@@ -126,7 +115,12 @@ def calculate_simulation_metrics(df: pd.DataFrame) -> dict:
         "lista_espera_monotonic_increasing": bool(
             ordered_df["lista_espera"].is_monotonic_increasing
         ),
+        "mapeo_version": "v1",
     }
+    for key in BENEFIT_KEYS:
+        metrics[f"final_{key}"] = int(final_row[key])
+        metrics[f"rate_{key}"] = _safe_rate(final_row[key], total_prestaciones)
+
     metrics["wellbeing_proxy"] = estimate_wellbeing_proxy(metrics)
     return {key: _to_builtin(value) for key, value in metrics.items()}
 
