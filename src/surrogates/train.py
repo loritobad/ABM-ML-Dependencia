@@ -1,6 +1,6 @@
 """Entrenamiento de surrogates (scaffold).
 
-No ejecutar la comparativa completa hasta que la puerta IMCV esté documentada.
+No ejecutar la comparativa completa hasta que la puerta SAAD esté documentada.
 Este módulo fija la interfaz y el control de variables experimentales.
 """
 
@@ -13,15 +13,15 @@ from pathlib import Path
 from .catalog import SURROGATE_FAMILIES, list_families
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-GATE_REPORT = PROJECT_ROOT / "outputs" / "metrics" / "abm_imcv_validation.json"
+GATE_REPORT = PROJECT_ROOT / "outputs" / "metrics" / "abm_saad_validation.json"
 MANIFEST = PROJECT_ROOT / "outputs" / "datasets" / "dataset_manifest.json"
 
 
 def gate_allows_training(report_path: Path = GATE_REPORT) -> tuple[bool, str]:
-    """Comprueba la decisión de puerta ABM↔IMCV."""
+    """Comprueba la decisión de puerta ABM↔SAAD (IMSERSO)."""
     if not report_path.exists():
         return False, (
-            f"No existe {report_path}. Ejecute primero: python -m src.run_imcv_validation"
+            f"No existe {report_path}. Ejecute primero: python -m src.run_saad_validation"
         )
     report = json.loads(report_path.read_text(encoding="utf-8"))
     decision = report.get("gate_decision")
@@ -46,7 +46,7 @@ def main() -> None:
     args = parser.parse_args()
 
     allowed, detail = gate_allows_training()
-    print(f"Puerta IMCV: {detail}")
+    print(f"Puerta SAAD: {detail}")
     if not allowed and not args.force:
         raise SystemExit(1)
 

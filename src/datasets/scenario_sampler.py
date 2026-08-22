@@ -13,17 +13,21 @@ from typing import Literal
 import numpy as np
 
 try:
+    from ..model.capacity import cupos_from_n
     from ..model.parameters import get_base_parameters
     from .parameter_bounds import (
         BENEFIT_KEYS,
+        CAPACITY_KEYS,
         GRADE_KEYS,
         LHS_EXTRAPOLATION_BOUNDS,
         LHS_PARAMETER_BOUNDS,
     )
 except ImportError:
+    from model.capacity import cupos_from_n
     from model.parameters import get_base_parameters
     from datasets.parameter_bounds import (
         BENEFIT_KEYS,
+        CAPACITY_KEYS,
         GRADE_KEYS,
         LHS_EXTRAPOLATION_BOUNDS,
         LHS_PARAMETER_BOUNDS,
@@ -120,6 +124,16 @@ def latin_hypercube(
     return points
 
 
+def apply_capacity_factor(parameters: dict, factor: float | None = None) -> dict:
+    """Escala los cupos IMSERSO por factor_capacidad (enteros ≥ 1)."""
+    n = int(parameters["initial_vulnerable_population"])
+    scale = float(parameters["factor_capacidad"] if factor is None else factor)
+    parameters["factor_capacidad"] = scale
+    for key, stock in cupos_from_n(n).items():
+        parameters[key] = max(1, int(round(stock * scale)))
+    return parameters
+
+
 def _map_unit_to_bounds(unit_value: float, low: float, high: float) -> float:
     return float(low + unit_value * (high - low))
 
@@ -156,11 +170,14 @@ def build_parameters_from_lhs_row(
         raw = _map_unit_to_bounds(unit_row[index], low, high)
         if key in month_keys:
             parameters[key] = int(round(raw))
+        elif key in CAPACITY_KEYS:
+            parameters[key] = float(raw)
         else:
             parameters[key] = clip_probability(raw)
 
+    apply_capacity_factor(parameters)
     parameters["prob_lista_espera"] = clip_probability(
-        1.0 - parameters["prob_prestacion_efectiva"]
+        1.0 - parameters.get("prob_prestacion_efectiva", 0.9841)
     )
     parameters["prob_reconocimiento_grado"] = parameters["prob_resolucion_grado_mensual"]
     parameters["prob_pia"] = parameters["prob_pia_mensual"]
@@ -283,8 +300,13 @@ def flatten_parameters(simulation_id: int, parameters: dict) -> dict:
         "prob_con_derecho": parameters["prob_con_derecho"],
         "prob_pia_mensual": parameters.get("prob_pia_mensual", parameters.get("prob_pia")),
         "prob_pia": parameters.get("prob_pia", parameters.get("prob_pia_mensual")),
-        "prob_prestacion_efectiva": parameters["prob_prestacion_efectiva"],
-        "prob_lista_espera": parameters["prob_lista_espera"],
+        "prob_prestacion_efectiva": parameters.get("prob_prestacion_efectiva", 0.9841),
+        "prob_lista_espera": parameters.get("prob_lista_espera"),
+        "factor_capacidad": parameters.get("factor_capacidad", 1.0),
+        "cupo_residencial": parameters.get("cupo_residencial"),
+        "cupo_dia": parameters.get("cupo_dia"),
+        "cupo_resto": parameters.get("cupo_resto"),
+        "cupo_atendidas": parameters.get("cupo_atendidas"),
         "meses_min_pendiente_grado": parameters.get("meses_min_pendiente_grado"),
         "meses_min_tramite_prestacion": parameters.get("meses_min_tramite_prestacion"),
         "prob_grado_I": grados["I"],

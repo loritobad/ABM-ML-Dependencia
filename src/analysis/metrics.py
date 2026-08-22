@@ -115,7 +115,7 @@ def calculate_simulation_metrics(df: pd.DataFrame) -> dict:
         "lista_espera_monotonic_increasing": bool(
             ordered_df["lista_espera"].is_monotonic_increasing
         ),
-        "mapeo_version": "v1",
+        "mapeo_version": "v1.5",
     }
     for key in BENEFIT_KEYS:
         metrics[f"final_{key}"] = int(final_row[key])

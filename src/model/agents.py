@@ -28,6 +28,8 @@ class DependenciaAgent(Agent):
         self.tipo_prestacion: Optional[str] = None
         self.meses_en_estado = 0
         self.meses_tramite_prestacion = 0
+        self.cola_recurso: Optional[str] = None
+        self.mes_entrada_lista = 10**9
 
         # Contexto Tabla 7 (v1)
         self.grupo_edad = self._sortear_grupo_edad()
@@ -100,19 +102,12 @@ class DependenciaAgent(Agent):
         min_tramite = int(self.model.params["meses_min_tramite_prestacion"])
         if self.meses_tramite_prestacion < min_tramite:
             return
-
-        weights = [
-            self.model.params["prob_prestacion_efectiva"],
-            self.model.params["prob_lista_espera"],
-        ]
-        nuevo_estado = self.random.choices(
-            [self.PRESTACION_EFECTIVA, self.LISTA_ESPERA],
-            weights=weights,
-            k=1,
-        )[0]
-        if nuevo_estado == self.PRESTACION_EFECTIVA:
+        if self.tipo_prestacion is None:
             self.tipo_prestacion = self._sortear_prestacion()
-        self._cambiar_estado(nuevo_estado)
+        if self.model.try_occupy(self):
+            return
+        self.mes_entrada_lista = self.model.month
+        self._cambiar_estado(self.LISTA_ESPERA)
 
     def _sortear_grado(self) -> str:
         distribution = self.model.params["distribucion_grados"]

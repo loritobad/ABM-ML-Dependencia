@@ -1,7 +1,7 @@
 """Paquete de modelos sustitutos (surrogates) del ABM.
 
 Orden metodológico obligatorio:
-1. Validar ABM vs IMCV (`python -m src.run_imcv_validation`)
+1. Validar ABM vs tasas SAAD (`python -m src.run_saad_validation`)
 2. Generar dataset LHS × réplicas (`python -m src.run_experiments`)
 3. Entrenar/evaluar familias aquí
 

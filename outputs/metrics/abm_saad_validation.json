@@ -1,0 +1,46 @@
+{
+  "year": 2024,
+  "n_indicators": 2,
+  "mae_pp": 3.0930630257014373,
+  "mae_threshold_pp": 5.0,
+  "gate_decision": "pasa",
+  "abm_rates": {
+    "right_stock": 4669.0,
+    "limbo_stock": 262.0,
+    "attended": 4407.0,
+    "applicants": 5975.0,
+    "cobertura_pp": 94.38852002570144,
+    "limbo_pp": 5.611479974298565,
+    "pendiente_grado_pp": 3.7322175732217575
+  },
+  "per_indicator": [
+    {
+      "indicator": "cobertura",
+      "denominator": "personas_con_derecho",
+      "observed_pp": 91.295457,
+      "abm_pp": 94.38852002570144,
+      "abs_error_pp": 3.09306302570144,
+      "source": "IMSERSO Tabla 11 / estsisaad 31/12/2024"
+    },
+    {
+      "indicator": "limbo",
+      "denominator": "personas_con_derecho",
+      "observed_pp": 8.704543,
+      "abm_pp": 5.611479974298565,
+      "abs_error_pp": 3.0930630257014347,
+      "source": "IMSERSO / Observatorio (sobre con derecho)"
+    }
+  ],
+  "optional_check": {
+    "indicator": "pendiente_grado",
+    "denominator": "solicitudes",
+    "observed_pp": 5.9,
+    "abm_pp": 3.7322175732217575,
+    "abs_error_pp": 2.167782426778243,
+    "in_gate_mae": false
+  },
+  "mapeo_version": "v1.5",
+  "note": "Puerta SAAD (IMSERSO). Cupos v1.5 escalados por solicitudes; el limbo no se usa como tamaño de cupo. El IMCV queda archivado.",
+  "metrics_source": "outputs/metrics/base_simulation_metrics.json",
+  "reference_file": "data/raw/saad_reference.csv"
+}

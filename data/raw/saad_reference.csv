@@ -1,0 +1,4 @@
+indicator,year,value_pp,denominator,source,notes
+cobertura,2024,91.295457,personas_con_derecho,"IMSERSO Tabla 11 / estsisaad 31/12/2024","1494311/1636757 = 92,77% PIA × 98,41% prestación sobre PIA"
+limbo,2024,8.704543,personas_con_derecho,"IMSERSO / Observatorio (sobre con derecho)","complemento de cobertura; no se usa como tamaño de cupo"
+pendiente_grado,2024,5.90,solicitudes,"IMSERSO Tabla 11 (31/12/2024)","chequeo opcional; no entra en el MAE de puerta"

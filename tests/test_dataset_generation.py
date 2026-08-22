@@ -56,10 +56,27 @@ def test_lhs_scenarios_are_reproducible() -> None:
     a = sample_lhs_scenarios(4, seed=123, regime="interpolation")
     b = sample_lhs_scenarios(4, seed=123, regime="interpolation")
     assert len(a) == 4
-    assert a[0]["parameters"]["prob_prestacion_efectiva"] == b[0]["parameters"][
-        "prob_prestacion_efectiva"
+    assert a[0]["parameters"]["factor_capacidad"] == b[0]["parameters"][
+        "factor_capacidad"
     ]
     assert a[0]["regime"] == "interpolation"
+
+
+def test_lhs_v15_scales_cupos_not_dice() -> None:
+    from model.capacity import cupos_from_n
+
+    scenarios = sample_lhs_scenarios(8, seed=42, regime="interpolation")
+    params = scenarios[0]["parameters"]
+    assert "factor_capacidad" in params
+    assert 0.80 <= params["factor_capacidad"] <= 1.20
+    expected = cupos_from_n(params["initial_vulnerable_population"])
+    factor = params["factor_capacidad"]
+    assert params["cupo_atendidas"] == max(
+        1, int(round(expected["cupo_atendidas"] * factor))
+    )
+    extra = sample_lhs_scenarios(5, seed=99, regime="extrapolation")
+    assert extra[0]["parameters"]["factor_capacidad"] >= 0.55
+    assert extra[0]["parameters"]["factor_capacidad"] <= 1.45
 
 
 def test_splits_include_extrapolation_holdout() -> None:

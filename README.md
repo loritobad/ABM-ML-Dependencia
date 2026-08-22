@@ -10,15 +10,17 @@ Simulación basada en agentes (Mesa) del flujo administrativo del **SAAD** y pip
 
 ## Principio metodológico (orden obligatorio)
 
-1. **Validar el ABM frente al IMCV** (`python -m src.run_imcv_validation`) — puerta empírica.
+1. **Validar el ABM frente a tasas SAAD** (`python -m src.run_saad_validation`) — puerta empírica (cobertura y limbo IMSERSO).
 2. **Diseñar escenarios con LHS**, ejecutar réplicas y construir el dataset sintético.
 3. **Comparar surrogates** (Dummy, Ridge, CART, RF/GBM, MLP) midiendo fidelidad al ABM, aceleración y capacidad de extrapolación.
 
 El *ground truth* de los surrogates son las **salidas del ABM**, no los microdatos reales.
 
 ```text
-surrogate  →  ABM  →  realidad (IMCV)
+surrogate  →  ABM  →  realidad (tasas SAAD / IMSERSO)
 ```
+
+El IMCV queda archivado como puerta. El `wellbeing_proxy` es el target de los surrogates.
 
 ---
 
@@ -38,7 +40,8 @@ población vulnerable / no solicitante
 | Horizonte | 60 meses |
 | Salida | CSV **mensual agregado** |
 | Archivo | `data/simulation_outputs/base_simulation.csv` |
-| Proxy de bienestar | `wellbeing_proxy` (`src/analysis/wellbeing.py`) |
+| Proxy de bienestar | `wellbeing_proxy` (`src/analysis/wellbeing.py`; target de surrogates, no puerta) |
+| Mapeo | v1.5 (tres colas + techo de atendidas) |
 
 ---
 
@@ -60,8 +63,8 @@ Dependencias principales: `mesa`, `pandas`, `numpy`, `matplotlib`, `scikit-learn
 # 1) Simulación base + métricas (+ figuras)
 python -m src.run_simulation
 
-# 2) Puerta ABM ↔ IMCV
-python -m src.run_imcv_validation
+# 2) Puerta ABM ↔ SAAD (IMSERSO)
+python -m src.run_saad_validation --year 2024
 
 # 3) Dataset LHS × réplicas + hold-out de extrapolación
 python -m src.run_experiments --method lhs --n-simulations 100 --n-extrapolation 15 --n-replicas 10
@@ -83,18 +86,19 @@ python -m pytest
 ```text
 src/
 ├── model/                  # ABM Mesa (agentes, parámetros, modelo)
-├── analysis/               # métricas, wellbeing, IMCV, plots
+├── analysis/               # métricas, wellbeing, SAAD, plots
 ├── datasets/               # LHS, bounds, exporters, splits
 ├── surrogates/             # catálogo + scaffold de entrenamiento
 ├── run_simulation.py
-├── run_imcv_validation.py
+├── run_saad_validation.py
 └── run_experiments.py
 data/
-├── raw/imcv_reference.csv              # plantilla IMCV (sustituir por oficiales INE)
+├── raw/saad_reference.csv              # cobertura/limbo IMSERSO 2024
+├── raw/saad_capacity_reference.csv     # stocks y cupos v1.5
 └── simulation_outputs/base_simulation.csv
 outputs/
 ├── metrics/base_simulation_metrics.json
-├── metrics/abm_imcv_validation.json
+├── metrics/abm_saad_validation.json
 └── datasets/                           # mlp_dataset, splits, manifest+SHA256, graphs/
 docs/
 └── metodologia.md
@@ -119,11 +123,11 @@ docs/
 
 | Bloque | Estado |
 |--------|--------|
-| ABM base + métricas internas | Listo |
-| Proxy de bienestar | Listo |
-| Puerta IMCV (código + plantilla) | Listo — falta cargar IMCV oficial y cerrar decisión |
-| LHS + réplicas + hash + split de extrapolación | Listo en código |
-| Entrenamiento/evaluación completa de surrogates | Scaffold (siguiente incremento) |
+| ABM Mesa v1.5 (3 colas + techo atendidas) | Listo (`seed=42`) |
+| Proxy de bienestar | Listo (target surrogates) |
+| Puerta SAAD (cobertura/limbo IMSERSO) | **`pasa`** (MAE 3,09 pp) |
+| LHS + réplicas + hash + split de extrapolación | **Hecho** (115 filas; SHA256 en manifiesto) |
+| Entrenamiento/evaluación completa de surrogates | Scaffold (siguiente: 4.9) |
 | Prototipo web | Pendiente |
 
 Documentación metodológica: [`docs/metodologia.md`](docs/metodologia.md).

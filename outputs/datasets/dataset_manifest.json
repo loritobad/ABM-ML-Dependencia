@@ -1,0 +1,29 @@
+{
+  "method": "lhs",
+  "n_interpolation_scenarios": 100,
+  "n_extrapolation_scenarios": 15,
+  "n_replicas": 10,
+  "random_seed": 42,
+  "target_columns": [
+    "target_wellbeing_proxy",
+    "target_rate_prestacion_efectiva",
+    "target_rate_lista_espera",
+    "target_rate_sin_grado",
+    "target_final_prestacion_efectiva",
+    "target_final_lista_espera",
+    "target_final_sin_grado",
+    "target_month_prestacion_effectiva_exceeds_no_solicitantes"
+  ],
+  "variance_columns": [
+    "std_wellbeing_proxy",
+    "std_rate_prestacion_efectiva",
+    "std_rate_lista_espera"
+  ],
+  "mlp_dataset": "outputs\\datasets\\mlp_dataset.csv",
+  "sha256_mlp_dataset": "43c7f1f77426d9bd4c933bbb5401e28f50d701ff7ac69250e42b69e1794d36e7",
+  "splits": "outputs\\datasets\\dataset_splits.csv",
+  "note": "Diseño experimental, no muestra poblacional. Una fila = un escenario (vector de parámetros) con targets igual a la media de n_replicas ejecuciones Mesa. 1150 corridas no generan 1150 filas. std_* estima el suelo de error irreducible intra-escenario. Palanca de oferta: factor_capacidad (cupos v1.5), no el dado 98,41 %.",
+  "mapeo_version": "v1.5",
+  "unit": "scenario",
+  "n_abm_runs": 1150
+}

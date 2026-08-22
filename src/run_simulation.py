@@ -16,6 +16,7 @@ try:
         plot_estados_finales,
         plot_estados_saad,
         plot_grados_dependencia,
+        plot_ocupacion_colas,
         plot_prestaciones,
     )
     from .model.model import DependenciaABM
@@ -26,6 +27,7 @@ except ImportError:
         plot_estados_finales,
         plot_estados_saad,
         plot_grados_dependencia,
+        plot_ocupacion_colas,
         plot_prestaciones,
     )
     from model.model import DependenciaABM
@@ -63,10 +65,21 @@ def main() -> None:
     plot_grados_dependencia(results, FIGURES_DIR / "evolucion_grados_dependencia.png")
     plot_prestaciones(results, FIGURES_DIR / "evolucion_prestaciones.png")
     plot_estados_finales(results, FIGURES_DIR / "evolucion_estados_finales.png")
+    plot_ocupacion_colas(results, FIGURES_DIR / "ocupacion_colas_saad.png")
 
     metrics = calculate_simulation_metrics(results)
     metrics["seed"] = seed
-    metrics["mapeo_version"] = os.getenv("ABM_MAPEO_VERSION", "v1")
+    metrics["mapeo_version"] = os.getenv("ABM_MAPEO_VERSION", "v1.5")
+    metrics["cupo_residencial"] = int(parameters.get("cupo_residencial", 0)) or int(
+        model.params["cupo_residencial"]
+    )
+    metrics["cupo_dia"] = int(model.params["cupo_dia"])
+    metrics["cupo_resto"] = int(model.params["cupo_resto"])
+    metrics["cupo_atendidas"] = int(model.params["cupo_atendidas"])
+    metrics["ocupados_residencial"] = int(model.ocupados["residencial"])
+    metrics["ocupados_dia"] = int(model.ocupados["dia"])
+    metrics["ocupados_resto"] = int(model.ocupados["resto"])
+    metrics["rechazos_capacidad"] = int(model.rechazos_capacidad)
     save_metrics(metrics, METRICS_OUTPUT)
 
     print(f"CSV generado: {SIMULATION_OUTPUT}")
@@ -78,7 +91,9 @@ def main() -> None:
         f"lista={metrics['final_lista_espera']} "
         f"sin_grado={metrics['final_sin_grado']} "
         f"no_sol={metrics['final_no_solicitantes']} "
-        f"wellbeing={metrics['wellbeing_proxy']:.3f}"
+        f"wellbeing={metrics['wellbeing_proxy']:.3f} "
+        f"cupos={model.params['cupo_residencial']}/{model.params['cupo_dia']}/{model.params['cupo_resto']} "
+        f"atendidas_cap={model.params['cupo_atendidas']}"
     )
 
 

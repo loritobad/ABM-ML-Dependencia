@@ -82,8 +82,13 @@ def build_mlp_row(
         "prob_pia_mensual": parameters.get(
             "prob_pia_mensual", parameters.get("prob_pia")
         ),
-        "prob_prestacion_efectiva": parameters["prob_prestacion_efectiva"],
-        "prob_lista_espera": parameters["prob_lista_espera"],
+        "prob_prestacion_efectiva": parameters.get("prob_prestacion_efectiva", 0.9841),
+        "prob_lista_espera": parameters.get("prob_lista_espera"),
+        "factor_capacidad": parameters.get("factor_capacidad", 1.0),
+        "cupo_residencial": parameters.get("cupo_residencial"),
+        "cupo_dia": parameters.get("cupo_dia"),
+        "cupo_resto": parameters.get("cupo_resto"),
+        "cupo_atendidas": parameters.get("cupo_atendidas"),
         "meses_min_pendiente_grado": parameters.get("meses_min_pendiente_grado"),
         "meses_min_tramite_prestacion": parameters.get("meses_min_tramite_prestacion"),
         "prob_grado_I": grados["I"],

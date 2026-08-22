@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+from .capacity import cupos_from_n
+
 
 # Claves canónicas de prestaciones (Tabla 12, ocho categorías)
 BENEFIT_KEYS = (
@@ -57,9 +59,12 @@ DEFAULT_PARAMETERS = {
     # Trámite derecho→prestación (≈101 días ≈ 3 meses)
     "meses_min_tramite_prestacion": 3,
     "prob_pia_mensual": 0.40,
-    # Post-PIA (Tabla 11: prestación efectiva sobre PIA ~98,41 %)
+    # Post-PIA v1.5: la prestación ya no se sortea con 98,41 %.
+    # Las claves se conservan por compatibilidad LHS; Mesa usa cupos.
     "prob_prestacion_efectiva": 0.9841,
     "prob_lista_espera": 0.0159,
+    "factor_capacidad": 1.0,
+    "mapeo_version": "v1.5",
     "distribucion_grados": {
         "I": 0.3615,
         "II": 0.3744,
@@ -123,4 +128,7 @@ def _ensure_complements(params: dict) -> dict:
         "prob_reconocimiento_grado", params["prob_resolucion_grado_mensual"]
     )
     params.setdefault("prob_pia", params["prob_pia_mensual"])
+    n = int(params["initial_vulnerable_population"])
+    for key, value in cupos_from_n(n).items():
+        params.setdefault(key, value)
     return params

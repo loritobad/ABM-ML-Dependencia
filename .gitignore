@@ -16,6 +16,8 @@ data/synthetic/*
 
 !data/raw/.gitkeep
 !data/raw/imcv_reference.csv
+!data/raw/saad_reference.csv
+!data/raw/saad_capacity_reference.csv
 !data/processed/.gitkeep
 !data/synthetic/.gitkeep
 !outputs/runs/.gitkeep

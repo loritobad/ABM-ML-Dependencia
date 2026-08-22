@@ -1,0 +1,17 @@
+indicator,stock_real,cupo_sim_n6387,denominator,source,notes
+solicitudes,2165648,6387,solicitudes_saad,"IMSERSO estsisaad 31/12/2024","Universo de escala; N es muestra de solicitudes vigentes"
+con_derecho,1636757,4828,solicitudes_saad,"IMSERSO estsisaad 31/12/2024","No es cupo; solo referencia de escala alternativa"
+pia,1518424,4478,solicitudes_saad,"IMSERSO estsisaad 31/12/2024",
+prestacion_efectiva,1494311,4407,solicitudes_saad,"IMSERSO estsisaad 31/12/2024","Techo concurrente cupo_atendidas (stock ocupado, no tasa de limbo)"
+prevencion,78342,231,solicitudes_saad,"IMSERSO estsisaad 31/12/2024","Cola resto"
+teleasistencia,524561,1547,solicitudes_saad,"IMSERSO estsisaad 31/12/2024","Cola resto"
+ayuda_domicilio,357497,1054,solicitudes_saad,"IMSERSO estsisaad 31/12/2024","Cola resto"
+centro_dia_noche,110349,325,solicitudes_saad,"IMSERSO estsisaad 31/12/2024","Cola dia"
+atencion_residencial,184545,544,solicitudes_saad,"IMSERSO estsisaad 31/12/2024","Cola residencial"
+pev,222787,657,solicitudes_saad,"IMSERSO estsisaad 31/12/2024","Cola resto; no duplica camas"
+cuidados_familiares,636030,1875,solicitudes_saad,"IMSERSO estsisaad 31/12/2024","Cola resto"
+asistencia_personal,11034,33,solicitudes_saad,"IMSERSO estsisaad 31/12/2024","Cola resto"
+cola_residencial,184545,544,solicitudes_saad,"IMSERSO agregación v1.5","cupo_residencial"
+cola_dia,110349,325,solicitudes_saad,"IMSERSO agregación v1.5","cupo_dia"
+cola_resto,1830251,5398,solicitudes_saad,"IMSERSO agregación v1.5","suma prestaciones excepto residencial y dia"
+ex_ante_saturacion,0,0,n/a,"cálculo N=6387 mix Tabla 12","Tipo residencial/día/resto NO saturan vs mix; el techo atendidas (~4407) es el que puede apretar. No se recortó K al 8,70%."

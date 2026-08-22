@@ -1,0 +1,71 @@
+{
+  "n_rows": 115,
+  "n_replicas": 10,
+  "n_abm_runs": 1150,
+  "wellbeing_min": 6.85808663457735,
+  "wellbeing_max": 7.992507521932509,
+  "wellbeing_mean": 7.589651174264319,
+  "wellbeing_std_between": 0.21728209256991093,
+  "std_intra_mean": 0.010585814940067387,
+  "std_intra_max": 0.0217235973669734,
+  "std_intra_min": 0.0043093485600926,
+  "coverage_n_mean": 0.6411568335137269,
+  "wait_n_mean": 0.051036003839320325,
+  "sin_grado_n_mean": 0.17779742819994415,
+  "prestacion_stock_mean": 4095.068695652174,
+  "lista_stock_mean": 325.9669565217391,
+  "factor_min": 0.6015996669644306,
+  "factor_max": 1.4257597504565442,
+  "split_counts": {
+    "train": 70,
+    "validation": 15,
+    "test": 15,
+    "extrapolation": 15
+  },
+  "regime_counts": {
+    "interpolation": 100,
+    "extrapolation": 15
+  },
+  "corr_factor_wellbeing": 0.8356768752685994,
+  "corr_factor_lista": -0.7921844731126603,
+  "by_split": {
+    "extrapolation": {
+      "n": 15,
+      "mean": 7.491,
+      "min": 6.858,
+      "max": 7.993
+    },
+    "test": {
+      "n": 15,
+      "mean": 7.606,
+      "min": 7.32,
+      "max": 7.825
+    },
+    "train": {
+      "n": 70,
+      "mean": 7.623,
+      "min": 7.216,
+      "max": 7.928
+    },
+    "validation": {
+      "n": 15,
+      "mean": 7.514,
+      "min": 7.173,
+      "max": 7.822
+    }
+  },
+  "by_capacidad": {
+    "entorno_2024": {
+      "n": 54,
+      "mean": 7.637
+    },
+    "expansion": {
+      "n": 31,
+      "mean": 7.769
+    },
+    "recorte": {
+      "n": 30,
+      "mean": 7.319
+    }
+  }
+}

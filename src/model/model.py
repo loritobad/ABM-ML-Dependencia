@@ -1,4 +1,4 @@
-"""Clase principal del ABM de dependencia (Mesa) — mapeo operativo v1."""
+"""Clase principal del ABM de dependencia (Mesa) — mapeo operativo v1.5."""
 
 from __future__ import annotations
 
@@ -9,11 +9,12 @@ from mesa import Model
 from mesa.datacollection import DataCollector
 
 from .agents import DependenciaAgent
+from .capacity import QUEUE_KEYS, occupancy_ok, queue_for_benefit
 from .parameters import BENEFIT_KEYS, normalize_parameters
 
 
 class DependenciaABM(Model):
-    """Modelo mensual del circuito SAAD alineado al mapeo v1 (Tablas 6–13)."""
+    """Modelo mensual del circuito SAAD (v1.5: cupos nacionales de 3 colas)."""
 
     def __init__(
         self,
@@ -28,6 +29,8 @@ class DependenciaABM(Model):
 
         self.month = 0
         self.n_agents = int(self.params["initial_vulnerable_population"])
+        self.ocupados = {key: 0 for key in QUEUE_KEYS}
+        self.rechazos_capacidad = 0
         self.datacollector = self._build_datacollector()
         self._create_agents()
         self.datacollector.collect(self)
@@ -37,28 +40,49 @@ class DependenciaABM(Model):
             DependenciaAgent(model=self, unique_id=unique_id)
 
     def step(self) -> None:
-        """Ejecuta un tick mensual y guarda indicadores agregados."""
+        """FIFO de lista primero; luego ticks de agentes (nuevos PIA)."""
+        self._asignar_desde_lista()
         self.agents.shuffle_do("step")
         self.month += 1
         self.datacollector.collect(self)
 
     def run_model(self, n_months: Optional[int] = None) -> None:
-        """Ejecuta la simulación durante el número de meses indicado."""
         months = n_months or int(self.params["simulation_months"])
         for _ in range(months):
             self.step()
 
     def run(self, n_months: Optional[int] = None) -> pd.DataFrame:
-        """Ejecuta la simulación y devuelve directamente sus resultados."""
         self.run_model(n_months=n_months)
         return self.get_results()
 
     def get_results(self) -> pd.DataFrame:
-        """Devuelve un DataFrame mensual con las salidas agregadas."""
         return self.datacollector.get_model_vars_dataframe().reset_index(drop=True)
 
-    @staticmethod
-    def _build_datacollector() -> DataCollector:
+    def try_occupy(self, agent: DependenciaAgent, *, count_reject: bool = True) -> bool:
+        """Intenta ocupar un hueco de la cola del agente y el techo de atendidas."""
+        if not agent.tipo_prestacion:
+            agent.tipo_prestacion = agent._sortear_prestacion()
+        queue = queue_for_benefit(agent.tipo_prestacion)
+        agent.cola_recurso = queue
+        if not occupancy_ok(self.ocupados, self.params, queue):
+            if count_reject:
+                self.rechazos_capacidad += 1
+            return False
+        self.ocupados[queue] += 1
+        agent._cambiar_estado(agent.PRESTACION_EFECTIVA)
+        return True
+
+    def _asignar_desde_lista(self) -> None:
+        waiting = [
+            a
+            for a in self.agents
+            if a.estado_saad == DependenciaAgent.LISTA_ESPERA
+        ]
+        waiting.sort(key=lambda a: (a.mes_entrada_lista, a.unique_id))
+        for agent in waiting:
+            self.try_occupy(agent, count_reject=False)
+
+    def _build_datacollector(self) -> DataCollector:
         reporters = {
             "month": lambda model: model.month,
             "vulnerables": lambda model: model.n_agents,
@@ -80,6 +104,14 @@ class DependenciaABM(Model):
             "edad_65_74": lambda model: model._count_age("65_74"),
             "edad_75_84": lambda model: model._count_age("75_84"),
             "edad_85_plus": lambda model: model._count_age("85_plus"),
+            "ocupados_residencial": lambda model: model.ocupados["residencial"],
+            "ocupados_dia": lambda model: model.ocupados["dia"],
+            "ocupados_resto": lambda model: model.ocupados["resto"],
+            "cupo_residencial": lambda model: int(model.params["cupo_residencial"]),
+            "cupo_dia": lambda model: int(model.params["cupo_dia"]),
+            "cupo_resto": lambda model: int(model.params["cupo_resto"]),
+            "cupo_atendidas": lambda model: int(model.params["cupo_atendidas"]),
+            "rechazos_capacidad": lambda model: model.rechazos_capacidad,
         }
         for key in BENEFIT_KEYS:
             reporters[key] = (

@@ -236,9 +236,16 @@ def run_experiments(
         "sha256_mlp_dataset": dataset_hash,
         "splits": str((DATASETS_DIR / "dataset_splits.csv").relative_to(PROJECT_ROOT)),
         "note": (
-            "Unidad experimental = escenario. Targets promediados sobre réplicas. "
-            "std_* estima el suelo de error irreducible intra-escenario."
+            "Diseño experimental, no muestra poblacional. "
+            "Una fila = un escenario (vector de parámetros) con targets "
+            "igual a la media de n_replicas ejecuciones Mesa. "
+            "1150 corridas no generan 1150 filas. "
+            "std_* estima el suelo de error irreducible intra-escenario. "
+            "Palanca de oferta: factor_capacidad (cupos v1.5), no el dado 98,41 %."
         ),
+        "mapeo_version": "v1.5",
+        "unit": "scenario",
+        "n_abm_runs": n_replicas * len(scenarios),
     }
     with MANIFEST_PATH.open("w", encoding="utf-8") as handle:
         json.dump(manifest, handle, indent=2, ensure_ascii=False)
